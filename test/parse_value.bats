@@ -7,55 +7,55 @@ setup() {
 }
 
 @test "Clustered (a=b)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a=b" test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "Doubled (a==b)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a==b" test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="=b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="=b" )' "$(declare -p test_out)"
 }
 
 @test "Spaced Right (a= b)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a= b" test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "Spaced Left (a =b)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a =b" test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "Spaced Both (a = b)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a = b" test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "Spaced Both with padding ( a = b )" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val " a = b " test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "Spaced Both with tab padding (   a = b   )" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val " a = b   " test_out
-    assert_equal 'declare -a test_out=([0]="a" [1]="b")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="b" )' "$(declare -p test_out)"
 }
 
 @test "No Right (a=)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val "a=" test_out
-    assert_equal 'declare -a test_out=([0]="a")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="" )' "$(declare -p test_out)"
 }
 
 @test "Padding left and right of key ( a =)" {
-    test_out=()
+    declare -A test_out
     srcinfo.parse_key_val " a =" test_out
-    assert_equal 'declare -a test_out=([0]="a")' "$(declare -p test_out)"
+    assert_equal 'declare -A test_out=([key]="a" [value]="" )' "$(declare -p test_out)"
 }
