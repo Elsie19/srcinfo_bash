@@ -29,7 +29,18 @@ function srcinfo.parse_key_val() {
 }
 
 function srcinfo._basic_check() {
-    [[ "${1}" == *"="* ]]
+    [[ ${1} == *"="* ]]
+}
+
+function srcinfo._contains() {
+    local -n arr_name="${1}"
+    local key="${2}" z
+    for z in "${arr_name[@]}"; do
+        if [[ ${z} == "${key}" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # @description Create array based on input
@@ -44,19 +55,21 @@ function srcinfo._basic_check() {
 # @stdout Name of array created.
 function srcinfo._create_array() {
     local pkgbase="${1}" var_name="${2}" var_pref="${3}"
-    if [[ -n "${pkgbase}" ]]; then
-        if ! [[ -v "${pkgbase}_${var_pref}_${var_name}" ]]; then
-            declare -ag "${pkgbase}_${var_pref}_${var_name}"
-            echo "${pkgbase}_${var_pref}_${var_name}"
+    if [[ -n ${pkgbase} ]]; then
+        # Yes I know this looks awful, but this is the only way I can
+        # accurately (hopefully) split variables and prefixes later on.
+        if ! [[ -v "${var_pref}_${pkgbase}ZZZZZ${var_name}" ]]; then
+            declare -ag "${var_pref}_${pkgbase}ZZZZZ${var_name}"
+            echo "${var_pref}_${pkgbase}ZZZZZ${var_name}"
         else
-            echo "${pkgbase}_${var_pref}_${var_name}"
+            echo "${var_pref}_${pkgbase}ZZZZZ${var_name}"
         fi
     else
-        if ! [[ -v "${var_pref}_${var_name}" ]]; then
-            declare -ag "${var_pref}_${var_name}"
-            echo "${var_pref}_${var_name}"
+        if ! [[ -v "${var_pref}ZZZZZ${var_name}" ]]; then
+            declare -ag "${var_pref}ZZZZZ${var_name}"
+            echo "${var_pref}ZZZZZ${var_name}"
         else
-            echo "${var_pref}_${var_name}"
+            echo "${var_pref}ZZZZZ${var_name}"
         fi
     fi
 }
@@ -79,20 +92,20 @@ function srcinfo._promote_to_variable() {
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase temp_array ref total_list loop part ctr i
+    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase temp_array ref total_list loop part i part_two global_pkgbase split_up
     while getopts 'p' OPTION; do
         case "${OPTION}" in
             p) pacstall_compat=true ;;
-            ?) echo "Usage: ${FUNCNAME[0]} [-p] SRCINFO [var_prefix]" >&2 && return 2 ;;
+            ?) echo "Usage: ${FUNCNAME[0]} [-p] SRCINFO var_prefix" >&2 && return 2 ;;
         esac
     done
     shift $((OPTIND - 1))
     srcinfo_file="${1:?No SRCINFO passed to srcinfo.parse}"
-    [[ -n "${2}" ]] && var_prefix="${2}"
-    [[ ! -s "${srcinfo_file}" ]] && return 5
+    var_prefix="${2:?Variable prefix not passed to srcinfo.parse}"
+    [[ ! -s ${srcinfo_file} ]] && return 5
     while IFS= read -r line; do
         # Skip blank lines
-        [[ -z "${line}" ]] && continue
+        [[ -z ${line} ]] && continue
         [[ ${line} =~ ^\s*#.* ]] && continue
         # Trim leading whitespace.
         line="${line##+([[:space:]])}"
@@ -102,20 +115,23 @@ function srcinfo.parse() {
             return 3
         fi
         srcinfo.parse_key_val "${line}" temp_line
-        if [[ -z "${temp_line[value]}" ]]; then
+        if [[ -z ${temp_line[value]} ]]; then
             echo "Empty value for: '${line}'" >&2
             return 4
         fi
         # Define pkgbase first, it must be the first thing listed
-        if [[ -z "${pkgbase}" ]]; then
+        if [[ -z ${pkgbase} ]]; then
             # Do we have pkgbase first?
-            if [[ "${temp_line[key]}" == "pkgbase" ]]; then
+            if [[ ${temp_line[key]} == "pkgbase" ]]; then
                 pkgbase="${temp_line[value]}"
+                global_pkgbase="${temp_line[value]}"
             # Ok if not, did we not pass pacstall_compat?
-            elif [[ "${pacstall_compat}" == false ]]; then
+            elif [[ ${pacstall_compat} == false ]]; then
                 return 6
             fi
-        elif [[ "${temp_line[key]}" == *"pkgname" ]]; then
+        elif [[ ${temp_line[key]} == *"pkgbase" ]]; then
+            pkgbase="${temp_line[value]//-/_}"
+        elif [[ ${temp_line[key]} == *"pkgname" ]]; then
             # Bash can't have dashes in variable names
             pkgbase="${temp_line[value]//-/_}"
         fi
@@ -126,26 +142,54 @@ function srcinfo.parse() {
         temp_array="$(srcinfo._create_array "${pkgbase}" "${temp_line[key]}" "${var_prefix}")"
         declare -n ref="${temp_array}"
         ref+=("${temp_line[value]}")
-        total_list+=("${temp_array}")
+        #TODO: In the linux SRCINFO, the pkgbase pkgdesc and pkgname=linux pkgdesc
+        # get merged into an array, so I suppose we need to check if both pkgbase and
+        # pkgname have the same keys, and if so, use pkgname, and if not, inherit from
+        # pkgbase.
+        if ! srcinfo._contains total_list "${temp_array}"; then
+            total_list+=("${temp_array}")
+        fi
     done < "${srcinfo_file}"
-    if [[ "${pacstall_compat}" == false ]]; then
-        declare -Ag "${var_prefix:+${var_prefix}_}access_pkgbase"
-        for loop in "${total_list[@]}"; do
-            declare -n part="${loop}"
-            # Are we at a new pkgname (pkgbase)?
-            if [[ "${loop}" == *"pkgname" ]]; then
-                declare -n var_name="${var_prefix:+${var_prefix}_}access_pkgbase"
-                for i in "${!part[@]}"; do
-                    # Create our inner part
-                    declare -Ag "${var_prefix:+${var_prefix}_}${part[$i]//-/_}_inner"
-                    # Declare that relationship
-                    var_name["${var_prefix:+${var_prefix}_}${part[$i]//-/_}"]="${var_prefix:+${var_prefix}_}${part[$i]//-/_}_inner"
-                done
-                continue
-            fi
-            # Alright now that we're here, we can start filling stuff up.
-        done
-        declare -p "${var_prefix:+${var_prefix}_}access_pkgbase"
-    fi
-    declare -p total_list
+    declare -Ag "${var_prefix}_access_pkgbase"
+    for loop in "${total_list[@]}"; do
+        declare -n part="${loop}"
+        # Are we at a new pkgname (pkgbase)?
+        if [[ ${loop} == *"pkgname" ]]; then
+            declare -n var_name="${var_prefix}_access_pkgbase"
+            for i in "${!part[@]}"; do
+                # Create our inner part
+                declare -Ag "${var_prefix}_${part[$i]//-/_}_inner"
+                # Declare that relationship
+                var_name["${var_prefix}_${part[$i]//-/_}"]="${var_prefix}_${part[$i]//-/_}_inner"
+            done
+        fi
+    done
+    for part_two in "${total_list[@]}"; do
+        # We already dealt with these
+        [[ ${part_two} == *"ZZZZZpkgbase" ]] && continue
+        # Now we need to go and check every loop over, and parse it out so we get something like ("prefix", "key"), so we can then work with that.
+        # But first actually we should promote single element arrays to variables
+        declare -n referoo="${part_two}"
+        if (("${#referoo[@]}" == 1)); then
+            srcinfo._promote_to_variable "${part_two}"
+        fi
+        mapfile -t split_up <<< "${part_two/ZZZZZ/$'\n'}"
+        declare -n goob="${var_prefix}_access_pkgbase[${split_up[0]}]"
+        declare -n boob="${goob}"
+
+        # So now we need to check if the thing we're trying to insert is a variable,
+        # or an array.
+        if [[ "$(declare -p -- "${part_two}")" == "declare -a "* ]]; then
+            declare -ga "${var_prefix}_arrays_${part_two}"
+            declare -n yogabbagabba="${var_prefix}_arrays_${part_two}"
+            declare -n going_insane="${part_two}"
+            yogabbagabba=("${going_insane[@]}")
+            # shellcheck disable=SC2004
+            boob[${split_up[1]}]="SRCINFO_ARRAY_REDIRECT:${var_prefix}_arrays_${part_two}"
+        else
+            # shellcheck disable=SC2004
+            # shellcheck disable=SC2034
+            boob[${split_up[1]}]="${!part_two}"
+        fi
+    done
 }
