@@ -15,7 +15,7 @@ Include/source the entire `src/srcinfo.sh` file in your script, and run the func
 
 If you get 0, congratulations, you parsed a file! Since Bash doesn't have good support for anything past a simple dictionary, you're gonna have to parse some stuff yourself after, but here's how you would access something like `pkgbase->source->[1]`:
 
-First to get `pkgbase`, you must access an associated array named `{var_prefix}_pkgbases[pkgbase]`, which will contain the name of the array that you must access to get to that package contents, which is `{var_prefix}_pkgname`, another associated array which contains package information. If a key is an array, it will look like this:
+First to get `pkgbase`, you must access an associated array named `{var_prefix}_access_pkgbases[pkgbase]`, which will contain the name of the array that you must access to get to that package contents, which is `{var_prefix}_pkgname`, another associated array which contains package information. If a key is an array, it will look like this:
 ```
 SRCINFO_ARRAY_REDIRECT:array_name
 ```

@@ -1,14 +1,13 @@
 #!/bin/bash
-# srcinfo_bash is at version 0.0.1.
-
 # @file srcinfo.sh
 # @brief A library for parsing SRCINFO into native bash dictionaries.
-
-# @section Functions
-# @description Functions for parsing values.
+# @description
+#   This library is used for parsing SRCINFO into native bash dictionaries.
+#   Since Bash as of now does not have multidimensional arrays, srcinfo_bash
+#   takes a lot of liberties with creating arrays, and tries its hardest to make
+#   them easy to access.
 
 # @description Split a key value pair into an associated array.
-# @internal
 #
 # @example
 #   declare -A out
@@ -34,7 +33,6 @@ function srcinfo._basic_check() {
 }
 
 # @description Create array based on input
-# @internal
 #
 # @example
 #   srcinfo._create_array pkgbase var_name var_prefix
@@ -64,7 +62,6 @@ function srcinfo._create_array() {
 }
 
 # @description Promote array to variable
-# @internal
 #
 # @example
 #   foo=('bar')
@@ -82,7 +79,7 @@ function srcinfo._promote_to_variable() {
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase temp_array ref total_list loop part
+    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase temp_array ref total_list loop part ctr i
     while getopts 'p' OPTION; do
         case "${OPTION}" in
             p) pacstall_compat=true ;;
@@ -117,6 +114,9 @@ function srcinfo.parse() {
             elif [[ "${pacstall_compat}" == false ]]; then
                 return 6
             fi
+        elif [[ "${temp_line[key]}" == *"pkgname" ]]; then
+            # Bash can't have dashes in variable names
+            pkgbase="${temp_line[value]//-/_}"
         fi
         # Next we need to parse out individual keys.
         # So the strategy is to create arrays of every key and at the end,
@@ -127,13 +127,24 @@ function srcinfo.parse() {
         ref+=("${temp_line[value]}")
         total_list+=("${temp_array}")
     done < "${srcinfo_file}"
-    # `loop` is the array/variable name
-    # `${!loop}` is the value of that key
-    for loop in "${total_list[@]}"; do
-        declare -n part="${loop}"
-        if ((${#part[@]} == 1)); then
-            srcinfo._promote_to_variable "${loop}"
-        fi
-        declare -p "${loop}"
-    done
+    if [[ "${pacstall_compat}" == false ]]; then
+        declare -Ag "${var_prefix:+${var_prefix}_}access_pkgbase"
+        for loop in "${total_list[@]}"; do
+            declare -n part="${loop}"
+            # Are we at a new pkgname (pkgbase)?
+            if [[ "${loop}" == *"pkgname" ]]; then
+                declare -n var_name="${var_prefix:+${var_prefix}_}access_pkgbase"
+                for i in "${!part[@]}"; do
+                    # Create our inner part
+                    declare -Ag "${var_prefix:+${var_prefix}_}${part[$i]//-/_}_inner"
+                    # Declare that relationship
+                    var_name["${var_prefix:+${var_prefix}_}${part[$i]//-/_}"]="${var_prefix:+${var_prefix}_}${part[$i]//-/_}_inner"
+                done
+                continue
+            fi
+            # Alright now that we're here, we can start filling stuff up.
+        done
+        declare -p "${var_prefix:+${var_prefix}_}access_pkgbase"
+    fi
+    declare -p total_list
 }
