@@ -3,7 +3,7 @@
 `SRCINFO_BASH` is a one file sourced library for bash that parses [SRCINFO](https://wiki.archlinux.org/title/.SRCINFO) files into native bash dictionaries.
 
 #### Usage
-Include/source the entire `src/srcinfo.sh` file in your script, and run the function `srcinfo.parse`. It can take the optional flag `-p` to enable pacstall compatibility. The function has 1 required argument, that being the path to the SRCINFO file, and an optional second argument that takes a variable prefix, useful for avoiding variable name clashes. The function can return a variety of return codes, so you should know about what each one does:
+Include/source the entire `src/srcinfo.sh` file in your script, and run the function `srcinfo.parse`. It can take the optional flag `-p` to enable pacstall compatibility. The function has 2 required arguments, that being the path to the SRCINFO file, and a variable prefix, useful for avoiding variable name clashes. The function can return a variety of return codes, so you should know about what each one does:
 
 | Error Code | Description                            |
 |------------|----------------------------------------|
@@ -23,7 +23,7 @@ SRCINFO_ARRAY_REDIRECT:array_name
 
 Where `array_name` is the name of the array containing those values.
 
-If `-p` is passed, the first step goes away, so you just need the second associated array, that being `{var_prefix}_pkgname`.
+If `-p` is passed, the first step is irrelevant, so you can start with the second associated array, that being `{var_prefix}_pkgname_inner`.
 
 #### Notes
 This library does not check the validity of an SRCINFO file, please use another tool if that is important to you; likewise, this library also does not care about the [SRCINFO specification](https://wiki.archlinux.org/title/.SRCINFO#Specification), with the exception of the two sentences about blank lines, comments, and indentation. Whatever this library finds as a key, it will parse.
