@@ -21,3 +21,5 @@ SRCINFO_ARRAY_REDIRECT:array_name
 ```
 
 Where `array_name` is the name of the array containing those values.
+
+If `-p` is passed, the first step goes away, so you just need the second associated array, that being `{var_prefix}_pkgname`.
