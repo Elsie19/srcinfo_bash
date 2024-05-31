@@ -12,7 +12,7 @@ function srcinfo._basic_check() {
 }
 
 function srcinfo.parse() {
-    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix
+    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase
     while getopts 'p' OPTION; do
         case "${OPTION}" in
             p) pacstall_compat=true ;;
@@ -35,6 +35,16 @@ function srcinfo.parse() {
         if [[ -z "${temp_line[value]}" ]]; then
             echo "Empty value for: '${line}'" >&2
             return 4
+        fi
+        # Define pkgbase first
+        if [[ -z "${pkgbase}" ]]; then
+            # Do we have pkgbase first?
+            if [[ "${temp_line[key]}" == "pkgbase" ]]; then
+                pkgbase="${temp_line[value]}"
+            # Ok if not, did we not pass pacstall_compat?
+            elif [[ "${pacstall_compat}" == false ]]; then
+                return 6
+            fi
         fi
     done < "${srcinfo_file}"
 }
