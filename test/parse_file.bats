@@ -7,9 +7,14 @@ setup() {
 }
 
 @test "Run entire script" {
-    srcinfo.parse test/SRCINFO_paru
+    srcinfo.parse test/SRCINFO_paru foo
+    for i in "${!foo_access_pkgbase[@]}"; do
+        pkgbase="${foo_access_pkgbase[$i]}"
+        declare -n foo="${pkgbase}"
+        assert_equal "${foo[backup]}" "etc/paru.conf"
+    done
 }
 
 @test "Run entire script with '-p'" {
-    srcinfo.parse -p test/SRCINFO_amfora-bin
+    srcinfo.parse -p test/SRCINFO_amfora-bin foo
 }

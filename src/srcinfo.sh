@@ -125,9 +125,6 @@ function srcinfo.parse() {
             if [[ ${temp_line[key]} == "pkgbase" ]]; then
                 pkgbase="${temp_line[value]}"
                 global_pkgbase="${temp_line[value]}"
-            # Ok if not, did we not pass pacstall_compat?
-            elif [[ ${pacstall_compat} == false ]]; then
-                return 6
             fi
         elif [[ ${temp_line[key]} == *"pkgbase" ]]; then
             pkgbase="${temp_line[value]//-/_}"
@@ -149,7 +146,14 @@ function srcinfo.parse() {
         if ! srcinfo._contains total_list "${temp_array}"; then
             total_list+=("${temp_array}")
         fi
-    done < "${srcinfo_file}"
+    done <<< "$(
+        if [[ ${pacstall_compat} == true ]]; then
+            echo "pkgbase = temporary_pacstall_pkgbase"
+            cat "${srcinfo_file}"
+        else
+            cat "${srcinfo_file}"
+        fi
+    )"
     declare -Ag "${var_prefix}_access_pkgbase"
     for loop in "${total_list[@]}"; do
         declare -n part="${loop}"
@@ -183,6 +187,9 @@ function srcinfo.parse() {
             declare -ga "${var_prefix}_arrays_${part_two}"
             declare -n yogabbagabba="${var_prefix}_arrays_${part_two}"
             declare -n going_insane="${part_two}"
+            # Honestly at this point, idk why this is needed but it won't work
+            # without, so..
+            # shellcheck disable=SC2034
             yogabbagabba=("${going_insane[@]}")
             # shellcheck disable=SC2004
             boob[${split_up[1]}]="SRCINFO_ARRAY_REDIRECT:${var_prefix}_arrays_${part_two}"
