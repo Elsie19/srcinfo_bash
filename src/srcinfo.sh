@@ -212,9 +212,18 @@ function srcinfo.cleanup() {
         for z in "${big_balls[@]}"; do
             if [[ ${z} == "SRCINFO_ARRAY_REDIRECT:"* ]]; then
                 unset "${z#*:}"
+                unset "${var_prefix}_arrays_${z#*:}"
+            else
+                unset "${var_prefix}ZZZZZ${z}"
             fi
         done
         unset big_balls
     done
     unset "${var_prefix}_access_pkgbase"
+    # So now lets clean the stragglers that we can't reasonably infer
+    for i in $(compgen -v); do
+        if [[ ${i} == "${var_prefix}_"* ]] && [[ ${i} == *"ZZZZZ"* ]]; then
+            unset "${i}"
+        fi
+    done
 }
