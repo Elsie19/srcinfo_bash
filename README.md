@@ -23,3 +23,6 @@ SRCINFO_ARRAY_REDIRECT:array_name
 Where `array_name` is the name of the array containing those values.
 
 If `-p` is passed, the first step goes away, so you just need the second associated array, that being `{var_prefix}_pkgname`.
+
+#### Notes
+This library does not check the validity of an SRCINFO file, please use another tool if that is important to you; likewise, this library also does not care about the [SRCINFO specification](https://wiki.archlinux.org/title/.SRCINFO#Specification), with the exception of the two sentences about blank lines, comments, and indentation. Whatever this library finds as a key, it will parse.

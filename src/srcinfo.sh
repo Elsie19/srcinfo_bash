@@ -93,6 +93,7 @@ function srcinfo.parse() {
     while IFS= read -r line; do
         # Skip blank lines
         [[ -z "${line}" ]] && continue
+        [[ ${line} =~ ^\s*#.* ]] && continue
         # Trim leading whitespace.
         line="${line##+([[:space:]])}"
         declare -A temp_line
