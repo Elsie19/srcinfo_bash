@@ -125,6 +125,8 @@ function srcinfo.parse() {
             if [[ ${temp_line[key]} == "pkgbase" ]]; then
                 pkgbase="${temp_line[value]}"
                 global_pkgbase="${temp_line[value]}"
+            else
+                return 6
             fi
         elif [[ ${temp_line[key]} == *"pkgbase" ]]; then
             pkgbase="${temp_line[value]//-/_}"

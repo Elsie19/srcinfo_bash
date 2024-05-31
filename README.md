@@ -12,6 +12,7 @@ Include/source the entire `src/srcinfo.sh` file in your script, and run the func
 | 3          | Could not parse a valid key value pair |
 | 4          | Could not parse a valid value          |
 | 5          | Empty file passed                      |
+| 6          | No pkgbase and no `-p`                 |
 
 If you get 0, congratulations, you parsed a file! Since Bash doesn't have good support for anything past a simple dictionary, you're gonna have to parse some stuff yourself after, but here's how you would access something like `pkgbase->source->[1]`:
 
