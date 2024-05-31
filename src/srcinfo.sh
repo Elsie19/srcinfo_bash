@@ -200,3 +200,19 @@ function srcinfo.parse() {
         fi
     done
 }
+
+function srcinfo.cleanup() {
+    local var_prefix="${1:?No var_prefix passed to srcinfo.cleanup}" i z
+    local main_loop_template="${var_prefix}_access_pkgbase"
+    declare -n main_loop="${main_loop_template}"
+    for i in "${main_loop[@]}"; do
+        declare -n big_balls="${i}"
+        for z in "${big_balls[@]}"; do
+            if [[ ${z} == "SRCINFO_ARRAY_REDIRECT:"* ]]; then
+                unset "${z#*:}"
+            fi
+        done
+        unset big_balls
+    done
+    unset "${var_prefix}_access_pkgbase"
+}
