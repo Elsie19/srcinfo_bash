@@ -7,8 +7,6 @@
 #   takes a lot of liberties with creating arrays, and tries its hardest to make
 #   them easy to access.
 
-declare -gx PS4=$'\E[0;10m\E[1m\033[1;31m\033[1;37m[\033[1;35m${BASH_SOURCE[0]##*/}:\033[1;34m${FUNCNAME[0]:-NOFUNC}():\033[1;33m${LINENO}\033[1;37m] - \033[1;33mDEBUG: \E[0;10m'
-
 # @description Split a key value pair into an associated array.
 #
 # @example
@@ -56,7 +54,7 @@ function srcinfo._contains() {
 #
 # @stdout Name of array created.
 function srcinfo._create_array() {
-    local pkgbase="${1}" var_name="${2}" var_pref="${3}" global
+    local pkgbase="${1}" var_name="${2}" var_pref="${3}"
     if [[ -n ${pkgbase} ]]; then
         if ! [[ -v "${var_pref}_${pkgbase}_array_${var_name}" ]]; then
             declare -ag "${var_pref}_${pkgbase}_array_${var_name}"
@@ -81,14 +79,13 @@ function srcinfo._promote_to_variable() {
     local var_name="${1}" key value
     key="${var_name}"
     value="${!var_name[0]}"
-    unset "${var_name}"
     declare -g "${key}=${value}"
 }
 
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND srcinfo_file var_prefix local_pkgbase temp_array ref total_list loop part i part_two split_up
+    local OPTION OPTIND srcinfo_file var_prefix locbase temp_array ref total_list loop part i part_two split_up
     while getopts 'f' OPTION; do
         case "${OPTION}" in
             ?) echo "Usage: ${FUNCNAME[0]} [-f] .SRCINFO var_prefix" >&2 && return 2 ;;
@@ -116,31 +113,31 @@ function srcinfo.parse() {
             return 4
         fi
         # Define pkgbase first, it must be the first thing listed
-        if [[ -z ${global_pkgbase} ]]; then
+        if [[ -z ${globase} ]]; then
             # Do we have pkgbase first?
             if [[ ${temp_line[key]} == "pkgbase" ]]; then
-                local_pkgbase="${temp_line[value]//-/_}"
-                export global_pkgbase="${temp_line[value]}"
+                locbase="pkgbase_${temp_line[value]//-/_}"
+                export globase="${temp_line[value]}"
             else
-                local_pkgbase="${temp_line[value]//-/_}"
-                export global_pkgbase="temporary_pacstall_pkgbase"
+                locbase="${temp_line[value]//-/_}"
+                export globase="temporary_pacstall_pkgbase"
             fi
         elif [[ ${temp_line[key]} == *"pkgname" ]]; then
             # Bash can't have dashes in variable names
-            local_pkgbase="${temp_line[value]//-/_}"
+            locbase="${temp_line[value]//-/_}"
         fi
         # Next we need to parse out individual keys.
         # So the strategy is to create arrays of every key and at the end,
         # we can promote array.len() == 1 to variables instead. After that we
         # can work back upwards.
-        temp_array="$(srcinfo._create_array "${local_pkgbase}" "${temp_line[key]}" "${var_prefix}")"
+        temp_array="$(srcinfo._create_array "${locbase}" "${temp_line[key]}" "${var_prefix}")"
         declare -n ref="${temp_array}"
         ref+=("${temp_line[value]}")
         #TODO: In the linux SRCINFO, the pkgbase pkgdesc and pkgname=linux pkgdesc
         # get merged into an array, so I suppose we need to check if both pkgbase and
         # pkgname have the same keys, and if so, use pkgname, and if not, inherit from
         # pkgbase.
-        if [[ ${global_pkgbase} == ${local_pkgbase} ]] || ! srcinfo._contains total_list "${temp_array}"; then
+        if [[ ${locbase} == "pkgbase_"* ]] || ! srcinfo._contains total_list "${temp_array}"; then
             total_list+=("${temp_array}")
         fi
     done < "${srcinfo_file}"
@@ -148,19 +145,19 @@ function srcinfo.parse() {
     for loop in "${total_list[@]}"; do
         declare -n part="${loop}"
         # Are we at a new pkgname (pkgbase)?
-        if [[ ${loop} == *"pkgname" ]]; then
+        if [[ ${loop} == *"pkgname" || ${loop} == *"pkgbase" ]]; then
             declare -n var_name="${var_prefix}_access"
+            [[ ${loop} == "${var_prefix}_pkgbase"* ]] && global="pkgbase_"
             for i in "${!part[@]}"; do
                 # Create our inner part
-                declare -Ag "${var_prefix}_${part[$i]//-/_}"
+                declare -ga "${var_prefix}_${global}${part[$i]//-/_}"
                 # Declare that relationship
-                var_name["${var_prefix}_${part[$i]//-/_}"]="${var_prefix}_${part[$i]//-/_}"
+                var_name["${var_prefix}_${global}${part[$i]//-/_}"]="${var_prefix}_${global}${part[$i]//-/_}"
             done
+            unset global
         fi
     done
     for part_two in "${total_list[@]}"; do
-        # We already dealt with these
-        [[ ${part_two} == *"_array_pkgbase" ]] && continue
         # Now we need to go and check every loop over, and parse it out so we get something like ("prefix", "key"), so we can then work with that.
         # But first actually we should promote single element arrays to variables
         declare -n referoo="${part_two}"
@@ -193,7 +190,7 @@ function srcinfo.cleanup() {
         done
         unset big_balls
     done
-    unset "${var_prefix}_access" global_pkgbase
+    unset "${var_prefix}_access" globase global
     # So now lets clean the stragglers that we can't reasonably infer
     for i in $(compgen -v); do
         if [[ ${i} == "${var_prefix}_"* ]] && [[ ${i} == *"_array_"* ]]; then
@@ -210,11 +207,11 @@ function srcinfo.cleanup() {
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
-    local srcinfo_file="${1}" found="${2}" var_prefix="findvar" pkgbase output var name out idx evil ret=3
+    local srcinfo_file="${1}" found="${2}" var_prefix="findvar" pkgbase output var name out idx evil
     srcinfo.parse "${srcinfo_file}" "${var_prefix}"
     if [[ ${found} == "pkgbase" ]]; then
-        if [[ -n ${global_pkgbase} && ${global_pkgbase} != "temporary_pacstall_pkgbase" ]]; then
-            pkgbase="${global_pkgbase}"
+        if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
+            pkgbase="${globase}"
             declare -p pkgbase
             return 0
         else
@@ -225,45 +222,28 @@ function srcinfo.print_var() {
         declare -n output="${var}_array_${found}"
         declare -n name="${var}_array_pkgname"
         if [[ -n ${output[*]} ]]; then
-            if ((${#findvar_access[@]}>1)); then
-                if ((${#output[@]}>1)); then
-                    for out in "${output[@]}"; do
-                        if [[ ${global_pkgbase} == ${name} && ${out} == ${output[0]} ]]; then
-                            for idx in "${!output[@]}"; do
-                                evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[pkgbase-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
-                            done
-                            ret=0
-                        else
-                            for idx in "${!output[@]}"; do
-                                evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
-                            done
-                            ret=0
-                            break
-                        fi
-                    done
+            for idx in "${!output[@]}"; do
+                if ((${#findvar_access[@]}>1)); then
+                    if [[ ${var} =~ "pkgbase_${globase//-/_}" ]]; then
+                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[pkgbase-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                    else
+                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                    fi
                 else
-                    for idx in "${!output[@]}"; do
-                        evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
-                    done
-                    ret=0
-                fi
-            else
-                for idx in "${!output[@]}"; do
                     evil+=("$(printf "${var_prefix}_${found}_${name//-/_}[pkgname-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
-                done
-                ret=0
-            fi
+                fi
+            done
         fi
     done
-
-    declare -Ag "${var_prefix}_${found}_${global_pkgbase//-/_}"
-    declare -Ag "${var_prefix}_${found}_${name//-/_}"
+    if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
+        declare -Ag "${var_prefix}_${found}_${globase//-/_}"
+    else
+        declare -Ag "${var_prefix}_${found}_${name//-/_}"
+    fi
     eval "${evil[@]}"
-    if [[ -n ${global_pkgbase} && ${global_pkgbase} != "temporary_pacstall_pkgbase" ]]; then
-        declare -p "${var_prefix}_${found}_${global_pkgbase//-/_}"
+    if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
+        declare -p "${var_prefix}_${found}_${globase//-/_}"
     else
         declare -p "${var_prefix}_${found}_${name//-/_}"
     fi
 }
-
-srcinfo.print_var "${1}" "${2}"
