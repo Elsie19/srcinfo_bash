@@ -199,6 +199,27 @@ function srcinfo.cleanup() {
     done
 }
 
+# @description Reformat numbered associative array to indexed
+#
+# @example
+#   srcinfo_depends_vala_panel_appmenu_xfce_git=(["vala-panel-appmenu-valapanel-git-0"]="gtk3")
+#   srcinfo.reformat_assarr "srcinfo_depends_vala_panel_appmenu_xfce_git" "eviler"
+#
+#   converts to `srcinfo_depends_vala_panel_appmenu_valapanel_git=([0]="gtk3")`
+#
+# @arg $1 string Associative array to reformat
+# @arg $2 string Name of indexed array to append to append conversion to (can be anything) 
+function srcinfo.reformat_assarr() {
+    local pfx base ida new pfs in_name="${1}"
+    local -n in_arr="${in_name}" app="${2}"
+    IFS='_' read -r -a pfs <<< "${in_name}"
+    declare -Ag new_arr
+    for pfx in "${!in_arr[@]}"; do
+        base="${pfx%-*}" ida="${pfx##*-}" new="${base//-/_}"
+        app+=("$(printf "%s[%s]=\"%s\"\n" "${pfs[0]}_${pfs[1]}_${new}" "${ida}" "${in_arr[${pfx}]}")")
+    done
+}
+
 # @description Parse a specific variable from .SRCINFO
 #
 # @example
@@ -207,7 +228,7 @@ function srcinfo.cleanup() {
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
-    local srcinfo_file="${1}" found="${2}" var_prefix="findvar" pkgbase output var name out idx evil
+    local srcinfo_file="${1}" found="${2}" var_prefix="srcinfo" pkgbase output var name out idx evil eviler e printed
     srcinfo.parse "${srcinfo_file}" "${var_prefix}"
     if [[ ${found} == "pkgbase" ]]; then
         if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
@@ -218,19 +239,19 @@ function srcinfo.print_var() {
             return 3
         fi
     fi
-    for var in "${findvar_access[@]}"; do
+    for var in "${srcinfo_access[@]}"; do
         declare -n output="${var}_array_${found}"
         declare -n name="${var}_array_pkgname"
         if [[ -n ${output[*]} ]]; then
             for idx in "${!output[@]}"; do
-                if ((${#findvar_access[@]}>1)); then
+                if ((${#srcinfo_access[@]}>1)); then
                     if [[ ${var} =~ "pkgbase_${globase//-/_}" ]]; then
-                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[pkgbase-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[\"${globase}-pkgbase-%d\"]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
                     else
-                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                        evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[\"${name}-%d\"]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
                     fi
                 else
-                    evil+=("$(printf "${var_prefix}_${found}_${name//-/_}[pkgname-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                    evil+=("$(printf "${var_prefix}_${found}_${name//-/_}[\"${name}-%d\"]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
                 fi
             done
         fi
@@ -242,8 +263,18 @@ function srcinfo.print_var() {
     fi
     eval "${evil[@]}"
     if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
-        declare -p "${var_prefix}_${found}_${globase//-/_}"
+        srcinfo.reformat_assarr "${var_prefix}_${found}_${globase//-/_}" "eviler"
+        unset "${var_prefix}_${found}_${globase//-/_}"
+        eval "${eviler[@]}"
     else
-        declare -p "${var_prefix}_${found}_${name//-/_}"
+        srcinfo.reformat_assarr "${var_prefix}_${found}_${name//-/_}" "eviler"
+        unset "${var_prefix}_${found}_${name//-/_}"
+        eval "${eviler[@]}"
     fi
+    for e in "${eviler[@]}"; do
+        if ! srcinfo._contains printed "${e%\[*}"; then
+            printed+=("${e%\[*}")
+            declare -p "${e%\[*}"
+        fi
+    done
 }
