@@ -218,8 +218,10 @@ function srcinfo.cleanup() {
 }
 
 # @description Parse a specific variable from .SRCINFO
+#
 # @example
 #   srcinfo.print_var .SRCINFO source
+#
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
