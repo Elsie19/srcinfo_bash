@@ -7,6 +7,8 @@
 #   takes a lot of liberties with creating arrays, and tries its hardest to make
 #   them easy to access.
 
+declare -gx PS4=$'\E[0;10m\E[1m\033[1;31m\033[1;37m[\033[1;35m${BASH_SOURCE[0]##*/}:\033[1;34m${FUNCNAME[0]:-NOFUNC}():\033[1;33m${LINENO}\033[1;37m] - \033[1;33mDEBUG: \E[0;10m'
+
 # @description Split a key value pair into an associated array.
 #
 # @example
@@ -54,23 +56,17 @@ function srcinfo._contains() {
 #
 # @stdout Name of array created.
 function srcinfo._create_array() {
-    local pkgbase="${1}" var_name="${2}" var_pref="${3}"
+    local pkgbase="${1}" var_name="${2}" var_pref="${3}" global
     if [[ -n ${pkgbase} ]]; then
-        # Yes I know this looks awful, but this is the only way I can
-        # accurately (hopefully) split variables and prefixes later on.
         if ! [[ -v "${var_pref}_${pkgbase}_array_${var_name}" ]]; then
             declare -ag "${var_pref}_${pkgbase}_array_${var_name}"
-            echo "${var_pref}_${pkgbase}_array_${var_name}"
-        else
-            echo "${var_pref}_${pkgbase}_array_${var_name}"
         fi
+        echo "${var_pref}_${pkgbase}_array_${var_name}"
     else
         if ! [[ -v "${var_pref}_array_${var_name}" ]]; then
             declare -ag "${var_pref}_array_${var_name}"
-            echo "${var_pref}_array_${var_name}"
-        else
-            echo "${var_pref}_array_${var_name}"
         fi
+        echo "${var_pref}_array_${var_name}"
     fi
 }
 
@@ -92,11 +88,10 @@ function srcinfo._promote_to_variable() {
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND pacstall_compat=false srcinfo_file var_prefix pkgbase temp_array ref total_list loop part i part_two global_pkgbase split_up
-    while getopts 'p' OPTION; do
+    local OPTION OPTIND srcinfo_file var_prefix local_pkgbase emp_array ref total_list loop part i part_two split_up
+    while getopts 'f' OPTION; do
         case "${OPTION}" in
-            p) pacstall_compat=true ;;
-            ?) echo "Usage: ${FUNCNAME[0]} [-p] .SRCINFO var_prefix" >&2 && return 2 ;;
+            ?) echo "Usage: ${FUNCNAME[0]} [-f] .SRCINFO var_prefix" >&2 && return 2 ;;
         esac
     done
     shift $((OPTIND - 1))
@@ -121,43 +116,34 @@ function srcinfo.parse() {
             return 4
         fi
         # Define pkgbase first, it must be the first thing listed
-        if [[ -z ${pkgbase} ]]; then
+        if [[ -z ${global_pkgbase} ]]; then
             # Do we have pkgbase first?
             if [[ ${temp_line[key]} == "pkgbase" ]]; then
-                pkgbase="${temp_line[value]}"
-                global_pkgbase="${temp_line[value]}"
+                local_pkgbase="${temp_line[value]//-/_}"
+                export global_pkgbase="${temp_line[value]}"
             else
-                return 6
+                local_pkgbase="${temp_line[value]//-/_}"
+                export global_pkgbase="temporary_pacstall_pkgbase"
             fi
-        elif [[ ${temp_line[key]} == *"pkgbase" ]]; then
-            pkgbase="${temp_line[value]//-/_}"
         elif [[ ${temp_line[key]} == *"pkgname" ]]; then
             # Bash can't have dashes in variable names
-            pkgbase="${temp_line[value]//-/_}"
+            local_pkgbase="${temp_line[value]//-/_}"
         fi
-        export print_pkgbase="${pkgbase}"
         # Next we need to parse out individual keys.
         # So the strategy is to create arrays of every key and at the end,
         # we can promote array.len() == 1 to variables instead. After that we
         # can work back upwards.
-        temp_array="$(srcinfo._create_array "${pkgbase}" "${temp_line[key]}" "${var_prefix}")"
+        temp_array="$(srcinfo._create_array "${local_pkgbase}" "${temp_line[key]}" "${var_prefix}")"
         declare -n ref="${temp_array}"
         ref+=("${temp_line[value]}")
         #TODO: In the linux SRCINFO, the pkgbase pkgdesc and pkgname=linux pkgdesc
         # get merged into an array, so I suppose we need to check if both pkgbase and
         # pkgname have the same keys, and if so, use pkgname, and if not, inherit from
         # pkgbase.
-        if ! srcinfo._contains total_list "${temp_array}"; then
+        if [[ ${global_pkgbase} == ${local_pkgbase} ]] || ! srcinfo._contains total_list "${temp_array}"; then
             total_list+=("${temp_array}")
         fi
-    done <<< "$(
-        if [[ ${pacstall_compat} == true ]]; then
-            echo "pkgbase = temporary_pacstall_pkgbase"
-            cat "${srcinfo_file}"
-        else
-            cat "${srcinfo_file}"
-        fi
-    )"
+    done < "${srcinfo_file}"
     declare -Ag "${var_prefix}_access"
     for loop in "${total_list[@]}"; do
         declare -n part="${loop}"
@@ -190,8 +176,7 @@ function srcinfo.parse() {
             declare -ga "${part_two}"
             boob[${split_up[1]}]="${part_two}"
         else
-            # shellcheck disable=SC2004
-            # shellcheck disable=SC2034
+            # shellcheck disable=SC2034,SC2004
             boob[${split_up[1]}]="${!part_two}"
         fi
     done
@@ -208,7 +193,7 @@ function srcinfo.cleanup() {
         done
         unset big_balls
     done
-    unset "${var_prefix}_access"
+    unset "${var_prefix}_access" global_pkgbase
     # So now lets clean the stragglers that we can't reasonably infer
     for i in $(compgen -v); do
         if [[ ${i} == "${var_prefix}_"* ]] && [[ ${i} == *"_array_"* ]]; then
@@ -220,17 +205,65 @@ function srcinfo.cleanup() {
 # @description Parse a specific variable from .SRCINFO
 #
 # @example
-#   srcinfo.print_var .SRCINFO source
 #
+#   srcinfo.print_var .SRCINFO source
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
-    local srcinfo_file="${1}" found="${2}" var_prefix="findvar" output var print_pkgbase
-    srcinfo.parse -p "${srcinfo_file}" "${var_prefix}"
-    output="${var_prefix}_${print_pkgbase}_array_${found}[@]"
-    if [[ -n ${!output} ]]; then
-        printf "%s\n" "${!output}"
+    local srcinfo_file="${1}" found="${2}" var_prefix="findvar" pkgbase output var name out idx evil ret=3
+    srcinfo.parse "${srcinfo_file}" "${var_prefix}"
+    if [[ ${found} == "pkgbase" ]]; then
+        if [[ -n ${global_pkgbase} && ${global_pkgbase} != "temporary_pacstall_pkgbase" ]]; then
+            pkgbase="${global_pkgbase}"
+            declare -p pkgbase
+            return 0
+        else
+            return 3
+        fi
+    fi
+    for var in "${findvar_access[@]}"; do
+        declare -n output="${var}_array_${found}"
+        declare -n name="${var}_array_pkgname"
+        if [[ -n ${output[*]} ]]; then
+            if ((${#findvar_access[@]}>1)); then
+                if ((${#output[@]}>1)); then
+                    for out in "${output[@]}"; do
+                        if [[ ${global_pkgbase} == ${name} && ${out} == ${output[0]} ]]; then
+                            for idx in "${!output[@]}"; do
+                                evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[pkgbase-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                            done
+                            ret=0
+                        else
+                            for idx in "${!output[@]}"; do
+                                evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                            done
+                            ret=0
+                            break
+                        fi
+                    done
+                else
+                    for idx in "${!output[@]}"; do
+                        evil+=("$(printf "${var_prefix}_${found}_${global_pkgbase//-/_}[${name}-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                    done
+                    ret=0
+                fi
+            else
+                for idx in "${!output[@]}"; do
+                    evil+=("$(printf "${var_prefix}_${found}_${name//-/_}[pkgname-%d]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
+                done
+                ret=0
+            fi
+        fi
+    done
+
+    declare -Ag "${var_prefix}_${found}_${global_pkgbase//-/_}"
+    declare -Ag "${var_prefix}_${found}_${name//-/_}"
+    eval "${evil[@]}"
+    if [[ -n ${global_pkgbase} && ${global_pkgbase} != "temporary_pacstall_pkgbase" ]]; then
+        declare -p "${var_prefix}_${found}_${global_pkgbase//-/_}"
     else
-        return 1
+        declare -p "${var_prefix}_${found}_${name//-/_}"
     fi
 }
+
+srcinfo.print_var "${1}" "${2}"
