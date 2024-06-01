@@ -88,7 +88,7 @@ function srcinfo._promote_to_variable() {
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND srcinfo_file var_prefix local_pkgbase emp_array ref total_list loop part i part_two split_up
+    local OPTION OPTIND srcinfo_file var_prefix local_pkgbase temp_array ref total_list loop part i part_two split_up
     while getopts 'f' OPTION; do
         case "${OPTION}" in
             ?) echo "Usage: ${FUNCNAME[0]} [-f] .SRCINFO var_prefix" >&2 && return 2 ;;
