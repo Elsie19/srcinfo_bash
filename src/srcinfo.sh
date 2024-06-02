@@ -222,7 +222,7 @@ function srcinfo.reformat_assarr() {
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
-    local srcinfo_file="${1}" found="${2}" var_prefix="srcinfo" pkgbase output var name out idx evil eviler e printed
+    local srcinfo_file="${1}" found="${2}" var_prefix="srcinfo" pkgbase output var name idx evil eviler e printed
     srcinfo.parse "${srcinfo_file}" "${var_prefix}"
     if [[ ${found} == "pkgbase" ]]; then
         if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
@@ -239,6 +239,7 @@ function srcinfo.print_var() {
         if [[ -n ${output[*]} ]]; then
             for idx in "${!output[@]}"; do
                 if ((${#srcinfo_access[@]} > 1)); then
+                    # shellcheck disable=SC2076
                     if [[ ${var} =~ "pkgbase_${globase//-/_}" ]]; then
                         evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[\"${globase}-pkgbase-%d\"]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
                     else
