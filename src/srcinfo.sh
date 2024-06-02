@@ -165,6 +165,7 @@ function srcinfo.parse() {
         # or an array.
         if [[ "$(declare -p -- "${part_two}")" == "declare -a "* ]]; then
             declare -ga "${part_two}"
+            # shellcheck disable=SC2004
             boob[${split_up[1]}]="${part_two}"
         else
             # shellcheck disable=SC2034,SC2004
@@ -207,7 +208,6 @@ function srcinfo.reformat_assarr() {
     local pfx base ida new pfs in_name="${1}"
     local -n in_arr="${in_name}" app="${2}"
     IFS='_' read -r -a pfs <<< "${in_name}"
-    declare -Ag new_arr
     for pfx in "${!in_arr[@]}"; do
         base="${pfx%-*}" ida="${pfx##*-}" new="${base//-/_}"
         app+=("$(printf "%s[%s]=\"%s\"\n" "${pfs[0]}_${pfs[1]}_${new}" "${ida}" "${in_arr[${pfx}]}")")
@@ -223,6 +223,7 @@ function srcinfo.reformat_assarr() {
 # @arg $2 string Variable or Array to print
 function srcinfo.print_var() {
     local srcinfo_file="${1}" found="${2}" var_prefix="srcinfo" pkgbase output var name idx evil eviler e printed
+    local -n bases="${var_prefix}_access"
     srcinfo.parse "${srcinfo_file}" "${var_prefix}"
     if [[ ${found} == "pkgbase" ]]; then
         if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
@@ -233,12 +234,12 @@ function srcinfo.print_var() {
             return 3
         fi
     fi
-    for var in "${srcinfo_access[@]}"; do
+    for var in "${bases[@]}"; do
         declare -n output="${var}_array_${found}"
         declare -n name="${var}_array_pkgname"
         if [[ -n ${output[*]} ]]; then
             for idx in "${!output[@]}"; do
-                if ((${#srcinfo_access[@]} > 1)); then
+                if ((${#bases[@]} > 1)); then
                     # shellcheck disable=SC2076
                     if [[ ${var} =~ "pkgbase_${globase//-/_}" ]]; then
                         evil+=("$(printf "${var_prefix}_${found}_${globase//-/_}[\"${globase}-pkgbase-%d\"]=\"%s\"\n" "${idx}" "${output[${idx}]}")")
@@ -256,14 +257,17 @@ function srcinfo.print_var() {
     else
         declare -Ag "${var_prefix}_${found}_${name//-/_}"
     fi
+    # shellcheck disable=SC2294
     eval "${evil[@]}"
     if [[ -n ${globase} && ${globase} != "temporary_pacstall_pkgbase" ]]; then
         srcinfo.reformat_assarr "${var_prefix}_${found}_${globase//-/_}" "eviler"
         unset "${var_prefix}_${found}_${globase//-/_}"
+        # shellcheck disable=SC2294
         eval "${eviler[@]}"
     else
         srcinfo.reformat_assarr "${var_prefix}_${found}_${name//-/_}" "eviler"
         unset "${var_prefix}_${found}_${name//-/_}"
+        # shellcheck disable=SC2294
         eval "${eviler[@]}"
     fi
     for e in "${eviler[@]}"; do
