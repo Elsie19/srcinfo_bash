@@ -85,13 +85,7 @@ function srcinfo._promote_to_variable() {
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
     shopt -s extglob
-    local OPTION OPTIND srcinfo_file var_prefix locbase temp_array ref total_list loop part i part_two split_up
-    while getopts 'f' OPTION; do
-        case "${OPTION}" in
-            ?) echo "Usage: ${FUNCNAME[0]} [-f] .SRCINFO var_prefix" >&2 && return 2 ;;
-        esac
-    done
-    shift $((OPTIND - 1))
+    local srcinfo_file var_prefix locbase temp_array ref total_list loop part i part_two split_up
     srcinfo_file="${1:?No .SRCINFO passed to srcinfo.parse}"
     var_prefix="${2:?Variable prefix not passed to srcinfo.parse}"
     srcinfo.cleanup "${var_prefix}"
