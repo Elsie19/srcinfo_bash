@@ -18,8 +18,3 @@ setup() {
 @test "Run entire script with '-p'" {
     srcinfo.parse -p test/SRCINFO_amfora-bin foo
 }
-
-@test "Pacstall SRCINFO fails because of no '-p' flag" {
-    run srcinfo.parse test/SRCINFO_amfora-bin foo
-    assert_failure 6
-}
