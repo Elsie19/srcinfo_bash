@@ -144,9 +144,9 @@ function srcinfo.parse() {
             [[ ${loop} == "${var_prefix}_pkgbase"* ]] && global="pkgbase_"
             for i in "${!part[@]}"; do
                 # Create our inner part
-                declare -ga "${var_prefix}_${global}${part[$i]//-/_}"
+                declare -ga "${var_prefix}_${global}${part[${i}]//-/_}"
                 # Declare that relationship
-                var_name["${var_prefix}_${global}${part[$i]//-/_}"]="${var_prefix}_${global}${part[$i]//-/_}"
+                var_name["${var_prefix}_${global}${part[${i}]//-/_}"]="${var_prefix}_${global}${part[${i}]//-/_}"
             done
             unset global
         fi
