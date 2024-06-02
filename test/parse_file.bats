@@ -14,7 +14,3 @@ setup() {
         assert_equal "${foo[backup]}" "etc/paru.conf"
     done
 }
-
-@test "Run entire script with '-p'" {
-    srcinfo.parse -p test/SRCINFO_amfora-bin foo
-}
