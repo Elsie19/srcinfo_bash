@@ -84,6 +84,8 @@ function srcinfo._promote_to_variable() {
 
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
+    # shellcheck disable=SC2064
+    trap "$(shopt -p extglob)" RETURN
     shopt -s extglob
     local srcinfo_file var_prefix locbase temp_array ref total_list loop part i part_two split_up
     srcinfo_file="${1:?No .SRCINFO passed to srcinfo.parse}"
@@ -127,10 +129,6 @@ function srcinfo.parse() {
         temp_array="$(srcinfo._create_array "${locbase}" "${temp_line[key]}" "${var_prefix}")"
         declare -n ref="${temp_array}"
         ref+=("${temp_line[value]}")
-        #TODO: In the linux SRCINFO, the pkgbase pkgdesc and pkgname=linux pkgdesc
-        # get merged into an array, so I suppose we need to check if both pkgbase and
-        # pkgname have the same keys, and if so, use pkgname, and if not, inherit from
-        # pkgbase.
         if [[ ${locbase} == "pkgbase_"* ]] || ! srcinfo._contains total_list "${temp_array}"; then
             total_list+=("${temp_array}")
         fi
@@ -139,7 +137,7 @@ function srcinfo.parse() {
     for loop in "${total_list[@]}"; do
         declare -n part="${loop}"
         # Are we at a new pkgname (pkgbase)?
-        if [[ ${loop} == *"pkgname" || ${loop} == *"pkgbase" ]]; then
+        if [[ ${loop} == *@(pkgname|pkgbase) ]]; then
             declare -n var_name="${var_prefix}_access"
             [[ ${loop} == "${var_prefix}_pkgbase"* ]] && global="pkgbase_"
             for i in "${!part[@]}"; do
@@ -176,7 +174,7 @@ function srcinfo.parse() {
 
 function srcinfo.cleanup() {
     local var_prefix="${1:?No var_prefix passed to srcinfo.cleanup}" i z
-    local main_loop_template="${var_prefix}_access"
+    local main_loop_template="${var_prefix}_access" compg
     declare -n main_loop="${main_loop_template}"
     for i in "${main_loop[@]}"; do
         declare -n cleaner="${i}"
@@ -187,11 +185,10 @@ function srcinfo.cleanup() {
     done
     unset "${var_prefix}_access" globase global
     # So now lets clean the stragglers that we can't reasonably infer
-    for i in $(compgen -v); do
-        if [[ ${i} == "${var_prefix}_"* ]] && [[ ${i} == *"_array_"* ]]; then
+    mapfile -t compg < <(compgen -v)
+    for i in "${compg[@]}"; do
+        if [[ ${i} == "${var_prefix}_"* ]]; then
             unset -v "${i}"
-            # sanity check
-            unset -f "${i}"
         fi
     done
 }
@@ -205,7 +202,7 @@ function srcinfo.cleanup() {
 #   converts to `srcinfo_depends_vala_panel_appmenu_valapanel_git=([0]="gtk3")`
 #
 # @arg $1 string Associative array to reformat
-# @arg $2 string Name of indexed array to append to append conversion to (can be anything)
+# @arg $2 string Ref string of indexed array to append conversion to (can be anything)
 function srcinfo.reformat_assarr() {
     local pfx base ida new pfs in_name="${1}"
     local -n in_arr="${in_name}" app="${2}"
@@ -280,5 +277,55 @@ function srcinfo.print_var() {
             declare -p "${e%\[*}"
         fi
         unset "${e%\[*}"
+    done
+}
+
+# @description Output a specific variable from .SRCINFO
+#
+# @example
+#   srcinfo.match_pkg .SRCINFO pkgbase
+#   srcinfo.match_pkg .SRCINFO pkgdesc $(srcinfo.match_pkg .SRCINFO pkgbase)
+#
+# @arg $1 string .SRCINFO file path
+# @arg $2 string Variable or Array to search
+# @arg $3 string Package name or base to get output for
+function srcinfo.match_pkg() {
+    local declares d bases b guy match out srcfile="${1}" search="${2}" pkg="${3}"
+    if [[ ${pkg} == "pkgbase:"* || ${search} == "pkgbase" ]]; then
+        pkg="${pkg/pkgbase:/}"
+        match="srcinfo_${search}_${pkg//-/_}_pkgbase"
+    else
+        match="srcinfo_${search}_${pkg//-/_}"
+    fi
+    mapfile -t declares < <(srcinfo.print_var "${srcfile}" "${search}" | awk '{sub(/^declare -a |^declare -- /, ""); print}')
+    [[ ${search} == "pkgbase" && -z ${declares[*]} ]] \
+        && mapfile -t declares < <(srcinfo.print_var "${srcfile}" "pkgname" | awk '{sub(/^declare -a |^declare -- /, ""); print}')
+    for d in "${declares[@]}"; do
+        if [[ "${d%=\(*}" =~ = ]]; then
+            declare -- "${d}"
+            bases+=("${d%=*}")
+        else
+            declare -a "${d}"
+            bases+=("${d%=\(*}")
+        fi
+    done
+    for b in "${bases[@]}"; do
+        guy="${b}[@]"
+        if [[ -z "${pkg}" ]]; then
+            if [[ ${search} == "pkgname" || ${search} == "pkgbase" ]]; then
+                if [[ -n ${pkgbase} ]]; then
+                    out="${pkgbase/\"/}"
+                    out="${out/\"/}"
+                    printf '%s\n' "pkgbase:${out}"
+                    continue
+                fi
+                printf '%s\n' "${!guy}"
+                continue
+            else
+                printf '%s\n' "${guy}"
+                continue
+            fi
+        fi
+        [[ ${b} == "${match}" ]] && printf '%s\n' "${!guy}"
     done
 }
