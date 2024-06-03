@@ -318,16 +318,16 @@ function srcinfo.match_pkg() {
                 if [[ -n ${pkgbase} ]]; then
                     out="${pkgbase/\"/}"
                     out="${out/\"/}"
-                    echo "pkgbase:${out}"
+                    printf '%s\n' "pkgbase:${out}"
                     continue
                 fi
-                echo "${!guy}"
+                printf '%s\n' "${!guy}"
                 continue
             else
-                echo "${guy}"
+                printf '%s\n' "${guy}"
                 continue
             fi
         fi
-        [[ ${b} == "${match}" ]] && echo "${!guy}"
+        [[ ${b} == "${match}" ]] && printf '%s\n' "${!guy}"
     done
 }
