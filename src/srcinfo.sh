@@ -281,9 +281,9 @@ function srcinfo.print_var() {
 # @description Output a specific variable from .SRCINFO
 #
 # @example
-#
 #   srcinfo.match_pkg .SRCINFO pkgbase
 #   srcinfo.match_pkg .SRCINFO pkgdesc $(srcinfo.match_pkg .SRCINFO pkgbase)
+#
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to search
 # @arg $3 string Package name or base to get output for
