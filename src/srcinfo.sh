@@ -314,7 +314,7 @@ srcinfo.match_pkg() {
     for b in "${bases[@]}"; do
         guy="${b}[@]"
         if [[ -z "${pkg}" ]]; then
-            if [[ ${search} == "pkgname" ]] || ((${#bases[@]}==1)); then
+            if [[ ${search} == "pkgname" ]]; then
                 if [[ ${search} == "pkgbase" && -n ${pkgbase} ]]; then
                     out="${pkgbase/\"/}"
                     out="${out/\"/}"
