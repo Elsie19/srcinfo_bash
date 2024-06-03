@@ -291,7 +291,7 @@ function srcinfo.print_var() {
 # @arg $1 string .SRCINFO file path
 # @arg $2 string Variable or Array to search
 # @arg $3 string Package name or base to get output for
-srcinfo.match_pkg() {
+function srcinfo.match_pkg() {
     local declares d bases b guy match out srcfile="${1}" search="${2}" pkg="${3}"
     if [[ ${pkg} == "pkgbase:"* || ${search} == "pkgbase" ]]; then
         pkg="${pkg/pkgbase:/}"
