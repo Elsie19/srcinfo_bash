@@ -84,6 +84,7 @@ function srcinfo._promote_to_variable() {
 
 function srcinfo.parse() {
     # We need this for trimming whitespace without external tools.
+    trap "$(shopt -p extglob)" RETURN
     shopt -s extglob
     local srcinfo_file var_prefix locbase temp_array ref total_list loop part i part_two split_up
     srcinfo_file="${1:?No .SRCINFO passed to srcinfo.parse}"
@@ -135,7 +136,7 @@ function srcinfo.parse() {
     for loop in "${total_list[@]}"; do
         declare -n part="${loop}"
         # Are we at a new pkgname (pkgbase)?
-        if [[ ${loop} == *"pkgname" || ${loop} == *"pkgbase" ]]; then
+        if [[ ${loop} == *@(pkgname|pkgbase) ]]; then
             declare -n var_name="${var_prefix}_access"
             [[ ${loop} == "${var_prefix}_pkgbase"* ]] && global="pkgbase_"
             for i in "${!part[@]}"; do
